@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tic Tac Toe</title>
+    <style>
+        table {
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        td {
+            width: 100px;
+            height: 100px;
+            text-align: center;
+            font-size: 36px;
+            border: 2px solid black;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center;">Tic Tac Toe</h1>
+
+    <div style="text-align: center; margin-bottom: 15px;">
+        <input type="text" id="playerX" placeholder="Player X">
+        <input type="text" id="playerO" placeholder="Player O">
+        <button onclick="startGame()">Start Game</button>
+        <p id="gameInfo"></p>
+    </div>
+
+    <div style="text-align: center; margin-bottom: 10px;">
+        <input type="number" id="loadGameId" placeholder="Enter Game ID">
+        <button onclick="loadGame()">Load Game</button>
+    </div>
+
+    <div style="text-align: center; margin-bottom: 20px;">
+        <button onclick="resetBoard()">Reset Board</button>
+    </div>
+
+    <table id="board">
+        <tr>
+            <td data-index="0"></td>
+            <td data-index="1"></td>
+            <td data-index="2"></td>
+        </tr>
+        <tr>
+            <td data-index="3"></td>
+            <td data-index="4"></td>
+            <td data-index="5"></td>
+        </tr>
+        <tr>
+            <td data-index="6"></td>
+            <td data-index="7"></td>
+            <td data-index="8"></td>
+        </tr>
+    </table>
+
+    <script>
+        let currentPlayer = 'X';
+        let board = Array(9).fill('');
+        let gameId = null;
+
+        const cells = document.querySelectorAll('td');
+
+        cells.forEach(cell => {
+            cell.addEventListener('click', () => {
+                const index = cell.dataset.index;
+
+                if (!cell.textContent && !checkWinner() && gameId !== null) {
+                    cell.textContent = currentPlayer;
+                    board[index] = currentPlayer;
+
+                    const winner = checkWinner();
+                    if (winner) {
+                        alert(winner === 'D' ? 'It\'s a Draw!' : `${winner} wins!`);
+                    }
+
+                    saveMove(board.join(''), winner);
+                    currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+                }
+            });
+        });
+
+        function startGame() {
+            const playerX = document.getElementById('playerX').value;
+            const playerO = document.getElementById('playerO').value;
+
+            fetch('/new_game', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ player_x: playerX, player_o: playerO })
+            })
+            .then(res => res.json())
+            .then(data => {
+                gameId = data.game_id;
+                board = Array(9).fill('');
+                cells.forEach(cell => cell.textContent = '');
+                currentPlayer = 'X';
+                document.getElementById('gameInfo').textContent = `Game ID: ${gameId}`;
+                alert('Game started!');
+            });
+        }
+
+        function saveMove(boardState, winner) {
+            fetch(`/play/${gameId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ board_state: boardState, winner: winner })
+            });
+        }
+
+        function loadGame() {
+            const loadId = document.getElementById('loadGameId').value;
+
+            fetch(`/game/${loadId}`)
+                .then(res => {
+                    if (!res.ok) throw new Error("Game not found");
+                    return res.json();
+                })
+                .then(data => {
+                    gameId = data.id;
+                    board = data.board_state.split('');
+                    currentPlayer = 'X';
+                    document.getElementById('gameInfo').textContent =
+                        `Game ID: ${data.id} | ${data.player_x} vs ${data.player_o}`;
+
+                    cells.forEach((cell, index) => {
+                        cell.textContent = board[index];
+                    });
+
+                    if (data.winner) {
+                        alert(data.winner === 'D' ? 'Draw!' : `${data.winner} already won this game!`);
+                    }
+                })
+                .catch(err => alert(err.message));
+        }
+
+        function resetBoard() {
+            board = Array(9).fill('');
+            currentPlayer = 'X';
+
+            cells.forEach(cell => {
+                cell.textContent = '';
+            });
+
+            if (gameId) {
+                saveMove(board.join(''), null);
+            }
+
+            document.getElementById('gameInfo').textContent += ' | Board reset';
+        }
+
+        function checkWinner() {
+            const winPatterns = [
+                [0,1,2], [3,4,5], [6,7,8],
+                [0,3,6], [1,4,7], [2,5,8],
+                [0,4,8], [2,4,6]
+            ];
+
+            for (const [a, b, c] of winPatterns) {
+                if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+                    return board[a];
+                }
+            }
+
+            return board.includes('') ? null : 'D';
+        }
+    </script>
+</body>
+</html>
